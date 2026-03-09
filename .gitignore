@@ -1,0 +1,78 @@
+# ==============================================================================
+# eWallet Multiplatform Project - Ultimate .gitignore
+# ==============================================================================
+
+# --- System Files ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.lock-wscript
+
+# --- Android / Kotlin (Gradle) ---
+.gradle/
+build/
+captures/
+*.apk
+*.aar
+*.jks
+*.keystore
+local.properties
+.externalNativeBuild
+.cxx
+/google-services.json
+
+# --- iOS / Swift (Xcode) ---
+build/
+DerivedData/
+*.moved-aside
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/
+*.xcreleaselog
+!default.mode1v3
+!default.mode2v3
+!default.perspectivev3
+!default.xctestplan
+# Pokud používáš CocoaPods (pro eIDAS knihovny):
+# Pods/
+# Podfile.lock
+
+# --- IDEs (Neovim & JetBrains) ---
+.idea/
+*.iml
+*.iws
+.vscode/
+.project
+.classpath
+.settings/
+.factorypath
+
+# --- Kotlin LSP (kotlin-language-server) ---
+.kotlin/
+.kls/
+bin/
+
+# --- Environment & Tooling ---
+.env
+.env.local
+.env.*.local
+
+# SDKMAN (zbytky po migraci na Homebrew)
+.sdkman/
+
+# --- Project Specifics (CBOR/COSE test vectors) ---
+# Pokud generuješ dočasné binární testovací soubory
+tests/output/
+*.bin
+*.cbor
+
+# ==============================================================================
+# KEEP: Explicitly include important build scripts
+# ==============================================================================
+!gradlew
+!gradlew.bat
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
