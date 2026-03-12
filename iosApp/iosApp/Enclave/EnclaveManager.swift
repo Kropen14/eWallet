@@ -5,6 +5,11 @@ import LocalAuthentication
 import OSLog
 import Security
 
+//INFO: Single global Logger.instance instance
+extension Logger {
+  static let instance = Logger(subsystem: "cz.project.ewallet", category: "Security")
+}
+
 class EnclaveManager {
 
   private enum Constants {
@@ -13,30 +18,10 @@ class EnclaveManager {
     static let biometricTimeout: TimeInterval = 30
   }
 
-  private let logger = Logger(subsystem: "cz.project.ewallet", category: "Security")
-
   public func setup() {
     let context = LAContext()
     var error: NSError?
 
-    logger.log("Setting up hardware enclave")
-    if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
-
-      switch context.biometryType {
-
-      case .faceID:
-        logger.log("FaceID available !")
-      case .touchID:
-        logger.log("TouchID available !")
-      case .none:
-        logger.log("ERROR: No biometric verification available, application cannot run properly !")
-      @unknown default:
-        logger.log("Unknown biometry type")
-      }
-    } else {
-      let description = error?.localizedDescription ?? "Unknown error"
-      logger.log("Biometry could not be set up properly : \(description)")
-    }
   }
 
   public func run() {
@@ -44,7 +29,7 @@ class EnclaveManager {
 
     for (tag, exists) in keys {
       if !exists {
-        logger.log(
+        Logger.instance.log(
           "Generating key \(String(data: tag, encoding: .utf8)!,  privacy: .public)) inside hardware enclave"
         )
         generateKey(tag: tag, requireAuth: true)
@@ -57,11 +42,11 @@ class EnclaveManager {
     var results: [(Data, Bool)] = []
     for tag in keys {
       if getPubKey(tag: tag) != nil {
-        logger.log(
+        Logger.instance.log(
           "Key for \(String(data: tag, encoding: .utf8)!, privacy: .public) already exists")
         results.append((tag, true))
       } else {
-        logger.log(
+        Logger.instance.log(
           "Key for \(String(data: tag, encoding: .utf8)!, privacy: .public) does not exist and will be created"
         )
         results.append((tag, false))
@@ -85,7 +70,7 @@ class EnclaveManager {
         &error
       )
     else {
-      logger.log("Error, can not create Acess Control ruleset")
+      Logger.instance.log("Error, can not create Acess Control ruleset")
       return
     }
 
@@ -103,10 +88,11 @@ class EnclaveManager {
 
     guard let privateKey = SecKeyCreateRandomKey(attributes as CFDictionary, &error) else {
       let err = error?.takeRetainedValue()
-      logger.log("Error during key generation \(err?.localizedDescription ?? " Unknown error ")")
+      Logger.instance.log(
+        "Error during key generation \(err?.localizedDescription ?? " Unknown error ")")
       return
     }
-    logger.log("Key successfully generated inside Secure Enclave")
+    Logger.instance.log("Key successfully generated inside Secure Enclave")
   }
 
   public func getAttestationData(challengeFromServer: Data) async -> (
@@ -115,7 +101,7 @@ class EnclaveManager {
     let service = DCAppAttestService.shared
 
     guard service.isSupported else {
-      logger.log("Error: App attest service is not supported on the current device")
+      Logger.instance.log("Error: App attest service is not supported on the current device")
       return nil
     }
 
@@ -129,7 +115,7 @@ class EnclaveManager {
       return (keyId, attestationObject)
 
     } catch {
-      logger.log("Error during attestation: \(error.localizedDescription)")
+      Logger.instance.log("Error during attestation: \(error.localizedDescription)")
       return nil
     }
   }
