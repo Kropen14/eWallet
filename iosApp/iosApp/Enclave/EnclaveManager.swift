@@ -2,6 +2,7 @@ import CryptoKit
 import DeviceCheck
 import Foundation
 import LocalAuthentication
+import OSLog
 import Security
 
 class EnclaveManager {
@@ -12,27 +13,81 @@ class EnclaveManager {
     static let biometricTimeout: TimeInterval = 30
   }
 
-  func setup() {
+  private let logger = Logger(subsystem: "cz.project.ewallet", category: "Security")
+
+  public func setup() {
+    let context = LAContext()
+    var error: NSError?
+
+    logger.log("Setting up hardware enclave")
+    if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
+
+      switch context.biometryType {
+
+      case .faceID:
+        logger.log("FaceID available !")
+      case .touchID:
+        logger.log("TouchID available !")
+      case .none:
+        logger.log("ERROR: No biometric verification available, application cannot run properly !")
+      @unknown default:
+        logger.log("Unknown biometry type")
+      }
+    } else {
+      let description = error?.localizedDescription ?? "Unknown error"
+      logger.log("Biometry could not be set up properly : \(description)")
+    }
   }
 
-  func generateLocalDeviceKey() {
+  public func run() {
+    let keys = checkKeyExistence()
+
+    for (tag, exists) in keys {
+      if !exists {
+        logger.log(
+          "Generating key \(String(data: tag, encoding: .utf8)!,  privacy: .public)) inside hardware enclave"
+        )
+        generateKey(tag: tag, requireAuth: true)
+      }
+    }
   }
 
-  func generateQesAuthKey() {
-    generateKey(tag: Constants.qesAuthTag, requireAuth: true)
+  private func checkKeyExistence() -> [(Data, Bool)] {
+    let keys = [Constants.qesAuthTag, Constants.localDeviceTag]
+    var results: [(Data, Bool)] = []
+    for tag in keys {
+      if getPubKey(tag: tag) != nil {
+        logger.log(
+          "Key for \(String(data: tag, encoding: .utf8)!, privacy: .public) already exists")
+        results.append((tag, true))
+      } else {
+        logger.log(
+          "Key for \(String(data: tag, encoding: .utf8)!, privacy: .public) does not exist and will be created"
+        )
+        results.append((tag, false))
+      }
+
+    }
+    return results
   }
 
   private func generateKey(tag: Data, requireAuth: Bool) {
     var error: Unmanaged<CFError>?
 
-    let accessControl = SecAccessControlCreateWithFlags(
-      kCFAllocatorDefault,
-      kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-      .biometryCurrentSet,
-      &error
-    )
+    let flags: SecAccessControlCreateFlags =
+      requireAuth ? [.biometryCurrentSet, .privateKeyUsage] : []
 
-    guard let control = accessControl else { return }
+    guard
+      let accessControl = SecAccessControlCreateWithFlags(
+        kCFAllocatorDefault,
+        kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+        flags,
+        &error
+      )
+    else {
+      logger.log("Error, can not create Acess Control ruleset")
+      return
+    }
 
     let attributes: [String: Any] = [
       kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
@@ -41,36 +96,49 @@ class EnclaveManager {
       kSecPrivateKeyAttrs as String: [
         kSecAttrIsPermanent as String: true,
         kSecAttrApplicationTag as String: tag,
-        kSecAttrAccessControl as String: control,
+        kSecAttrAccessControl as String: accessControl,
+        kSecAttrCanSign as String: true,
       ] as [String: Any],
     ]
 
     guard let privateKey = SecKeyCreateRandomKey(attributes as CFDictionary, &error) else {
       let err = error?.takeRetainedValue()
-      print("Error during key generation \(err?.localizedDescription ?? " Unknown error ")")
+      logger.log("Error during key generation \(err?.localizedDescription ?? " Unknown error ")")
       return
     }
-    print("Key successfully generated inside Secure Enclave")
+    logger.log("Key successfully generated inside Secure Enclave")
   }
 
-  func getAttestationData(tag: String) -> Data? {
+  public func getAttestationData(challengeFromServer: Data) async -> (
+    keyId: String, attestation: Data
+  )? {
     let service = DCAppAttestService.shared
 
-    if !(service.isSupported) {
-      print("Error, Attestation service is not supported")
+    guard service.isSupported else {
+      logger.log("Error: App attest service is not supported on the current device")
       return nil
     }
 
-    //TODO: Implement attestation chain
+    do {
+      let keyId = try await service.generateKey()  //INFO: Generate key for attestation service
 
-    return nil
+      let clientDataHash = Data(SHA256.hash(data: challengeFromServer))  //INFO: Prepare a challenge for the apple verification server
+
+      let attestationObject = try await service.attestKey(keyId, clientDataHash: clientDataHash)  //INFO: Apple server communication, ret: CBOR
+
+      return (keyId, attestationObject)
+
+    } catch {
+      logger.log("Error during attestation: \(error.localizedDescription)")
+      return nil
+    }
   }
 
-  func getSignatureContext() -> LAContext {
+  public func getSignatureContext() -> LAContext {
     return LAContext()
   }
 
-  func getPubKey(tag: String) -> Data? {
+  public func getPubKey(tag: Data) -> Data? {
     let query: [String: Any] = [
       kSecClass as String: kSecClassKey,
       kSecAttrApplicationTag as String: tag,
