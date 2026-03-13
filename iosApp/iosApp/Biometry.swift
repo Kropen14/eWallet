@@ -5,6 +5,9 @@ class Biometry {
 
   func authenticateUser(bio_message: String) async -> (success: Bool, err: Error?) {
     let context = LAContext()
+    //INFO: disables fallback authentication with PIN
+    context.localizedFallbackTitle = ""
+
     var error: NSError?
 
     Logger.instance.log("Setting up hardware enclave")

@@ -12,7 +12,7 @@ extension Logger {
 
 class EnclaveManager {
 
-  private enum Constants {
+  public enum Constants {
     static let qesAuthTag = "cz.project.ewallet.qes_auth_key".data(using: .utf8)!
     static let localDeviceTag = "cz.project.ewallet.local_device_key".data(using: .utf8)!
     static let biometricTimeout: TimeInterval = 30
