@@ -12,7 +12,6 @@ struct ContentView: View {
     VStack {
 
       Button("Generate keys & Set up enclave") {
-        enclaveManager.setup()
         enclaveManager.run()
       }
       .padding()

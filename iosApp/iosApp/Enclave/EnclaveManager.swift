@@ -18,12 +18,6 @@ class EnclaveManager {
     static let biometricTimeout: TimeInterval = 30
   }
 
-  public func setup() {
-    let context = LAContext()
-    var error: NSError?
-
-  }
-
   public func run() {
     let keys = checkKeyExistence()
 

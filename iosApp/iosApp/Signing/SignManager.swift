@@ -32,7 +32,7 @@ class SignManager {
     guard
       let signature = SecKeyCreateSignature(
         privateKey,
-        .ecdsaSignatureDigestX962SHA256,
+        .ecdsaSignatureDigestX962SHA256,  //FIX: OS Error 51 invalid digest size due to change to Digest instead of the previous one
         data_to_sign as CFData,
         &error
       )
