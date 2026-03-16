@@ -7,10 +7,17 @@ import Security
 
 //INFO: Single global Logger.instance instance
 extension Logger {
-  static let instance = Logger(subsystem: "cz.project.ewallet", category: "Security")
+  private static var subsystem = Bundle.main.bundleIdentifier ?? "cz.project.ewallet"
+
+  static func category(_ name: String) -> Logger {
+    return Logger(subsystem: subsystem, category: name)
+
+  }
 }
 
 class EnclaveManager {
+
+  private let logger = Logger.category("Enclave")
 
   public enum Constants {
     static let qesAuthTag = "cz.project.ewallet.qes_auth_key".data(using: .utf8)!
@@ -23,7 +30,7 @@ class EnclaveManager {
 
     for (tag, exists) in keys {
       if !exists {
-        Logger.instance.log(
+        logger.log(
           "Generating key \(String(data: tag, encoding: .utf8)!,  privacy: .public)) inside hardware enclave"
         )
         generateKey(tag: tag, requireAuth: true)
@@ -36,11 +43,11 @@ class EnclaveManager {
     var results: [(Data, Bool)] = []
     for tag in keys {
       if getPubKey(tag: tag) != nil {
-        Logger.instance.log(
+        logger.log(
           "Key for \(String(data: tag, encoding: .utf8)!, privacy: .public) already exists")
         results.append((tag, true))
       } else {
-        Logger.instance.log(
+        logger.log(
           "Key for \(String(data: tag, encoding: .utf8)!, privacy: .public) does not exist and will be created"
         )
         results.append((tag, false))
@@ -64,7 +71,7 @@ class EnclaveManager {
         &error
       )
     else {
-      Logger.instance.log("Error, can not create Acess Control ruleset")
+      logger.log("Error, can not create Acess Control ruleset")
       return
     }
 
@@ -82,11 +89,11 @@ class EnclaveManager {
 
     guard let privateKey = SecKeyCreateRandomKey(attributes as CFDictionary, &error) else {
       let err = error?.takeRetainedValue()
-      Logger.instance.log(
+      logger.log(
         "Error during key generation \(err?.localizedDescription ?? " Unknown error ")")
       return
     }
-    Logger.instance.log("Key successfully generated inside Secure Enclave")
+    logger.log("Key successfully generated inside Secure Enclave")
   }
 
   public func getAttestationData(challengeFromServer: Data) async -> (
@@ -95,7 +102,7 @@ class EnclaveManager {
     let service = DCAppAttestService.shared
 
     guard service.isSupported else {
-      Logger.instance.log("Error: App attest service is not supported on the current device")
+      logger.log("Error: App attest service is not supported on the current device")
       return nil
     }
 
@@ -109,7 +116,7 @@ class EnclaveManager {
       return (keyId, attestationObject)
 
     } catch {
-      Logger.instance.log("Error during attestation: \(error.localizedDescription)")
+      logger.log("Error during attestation: \(error.localizedDescription)")
       return nil
     }
   }
