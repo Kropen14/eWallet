@@ -66,7 +66,8 @@ class SignManager {
   }
 
   public func signAsJAdES(
-    originalDocument: Data, fileName: String, tag: Data, pubKeyData: Data, context: LAContext
+    originalDocument: Data, fileName: String, tag: Data, pubKeyData: Data, context: LAContext,
+    userCert: SecCertificate
   ) -> Data? {
 
     logger.log("Initiating signing")
@@ -74,6 +75,7 @@ class SignManager {
     let documentHash = SHA256.hash(data: originalDocument)
     let documentHashBase64 = Data(documentHash).base64EncodedString()
     let timestamp = ISO8601DateFormatter().string(from: Date())
+    let certificateChain: [String] = getCertificateChain(for: userCert)
 
     //INFO: Transform the pubkey into the accepted standard
     guard pubKeyData.count == 65 && pubKeyData[0] == 0x04 else {
@@ -95,6 +97,7 @@ class SignManager {
       "alg": "ES256",
       "typ": "JAdES",
       "sigT": timestamp,
+      "x5c": certificateChain,
       "jwk": jwk,  //NOTE: tool for math check (DSS)
     ]
 
@@ -136,7 +139,7 @@ class SignManager {
   }
 
   // INFO: Převádí ASN.1 DER podpis z Apple Secure Enclave na 64-byte Raw formát vyžadovaný pro JWS/JAdES
-  func convertDERtoRawSignature(_ der: Data) -> Data? {
+  private func convertDERtoRawSignature(_ der: Data) -> Data? {
     var raw = Data()
     var index = 0
 
@@ -169,6 +172,42 @@ class SignManager {
 
     guard raw.count == 64 else { return nil }
     return raw
+  }
+
+  private func getCert(certificate: SecCertificate) -> String {
+    let data = SecCertificateCopyData(certificate) as Data
+    return data.base64EncodedString()
+  }
+
+  private func getCertificateChain(for certificate: SecCertificate) -> [String] {
+    var certs: [SecCertificate] = [certificate]
+    var policy = SecPolicyCreateBasicX509()
+    var trust: SecTrust?
+
+    SecTrustCreateWithCertificates(certificate, policy, &trust)
+
+    if let trust = trust, let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate] {
+      certs = chain
+    }
+
+    return certs.map { getCert(certificate: $0) }
+  }
+
+  public func findCertificate(tag: Data) -> SecCertificate? {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassCertificate,
+      kSecAttrLabel as String: tag,
+      kSecReturnRef as String: true,
+      kSecMatchLimit as String: kSecMatchLimitOne,
+    ]
+
+    var item: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &item)
+
+    if status == errSecSuccess {
+      return (item as! SecCertificate)
+    }
+    return nil
   }
 
 }
