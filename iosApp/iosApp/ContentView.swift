@@ -73,6 +73,7 @@ struct ContentView: View {
               return SecCertificateCreateWithData(nil, data as CFData)
             }()
 
+            //WARN: Use the proper certificate recieved from the CA after submitting CSR
             guard let certData = certFromBundle else { return }
 
             if let jadesData = signManager.signAsJAdES(
@@ -120,6 +121,7 @@ struct ContentView: View {
   }
 }
 
+//WARN: May break in the future if swift implements this differently
 extension URL: Identifiable {
   public var id: String { self.absoluteString }
 }

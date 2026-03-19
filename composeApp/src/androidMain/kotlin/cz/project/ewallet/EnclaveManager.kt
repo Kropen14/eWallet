@@ -1,5 +1,8 @@
+package cz.project.ewallet
+
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import android.util.Log
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PrivateKey
@@ -69,6 +72,9 @@ class EnclaveManager {
                                 .setDigests(KeyProperties.DIGEST_SHA256)
                                 .setUserAuthenticationRequired(requireAuth)
                                 .setIsStrongBoxBacked(useStrongBox)
+                                .setAttestationChallenge(
+                                        "dummy_challenge_for_testing".toByteArray()
+                                )
                 // INFO: LoA High condition : Invalidate keys if new biometric entry is added
 
                 builder.setUserAuthenticationParameters(
@@ -100,5 +106,24 @@ class EnclaveManager {
         // INFO: Returns pubkey part for registration with certification authority
         fun getPubKey(alias: String): java.security.PublicKey? {
                 return ks.getCertificate(alias)?.publicKey
+        }
+
+        // INFO: Quick check if the key already exists
+        fun hasKey(alias: String): Boolean {
+                return try {
+                        ks.containsAlias(alias)
+                } catch (e: Exception) {
+                        false
+                }
+        }
+
+        fun deleteKey(alias: String) {
+                try {
+                        if (ks.containsAlias(alias)) {
+                                ks.deleteEntry(alias)
+                        }
+                } catch (e: Exception) {
+                        Log.e("Enclave", "Nepodařilo se smazat klíč: ${e.message}")
+                }
         }
 }
