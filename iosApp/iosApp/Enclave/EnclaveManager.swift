@@ -149,5 +149,4 @@ class EnclaveManager {
     return SecKeyCopyExternalRepresentation(publicKey, &error) as Data?
 
   }
-
 }

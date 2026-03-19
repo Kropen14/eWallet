@@ -10,16 +10,25 @@ struct ContentView: View {
   let logger = Logger.category("ContentView")
 
   @State private var isImporting = false
+  @State private var itemURL: URL? = nil
+
   let fileHandler = FileHandler()
 
   var body: some View {
     VStack {
-
       Button("Generate keys & Set up enclave") {
         enclaveManager.run()
       }
       .padding()
-      .background(Color.blue)
+      .background(Color.red)
+      .foregroundColor(.white)
+      .cornerRadius(10)
+
+      Button("Generate & Share CSR") {
+        generateAndShareCSR(tag: EnclaveManager.Constants.localDeviceTag, commonName: "Jan Novak")
+      }
+      .padding()
+      .background(Color.green)
       .foregroundColor(.white)
       .cornerRadius(10)
 
@@ -35,8 +44,7 @@ struct ContentView: View {
       isPresented: $isImporting,
       allowedContentTypes: [.pdf],
       allowsMultipleSelection: false
-    ) {
-      result in
+    ) { result in
       switch result {
       case .success(let urls):
         guard let selectedUrl = urls.first else { return }
@@ -59,23 +67,13 @@ struct ContentView: View {
               guard let url = Bundle.main.url(forResource: "cert", withExtension: "der"),
                 let data = try? Data(contentsOf: url)
               else {
-                print("CHYBA: Soubor cert.der nebyl v aplikaci nalezen!")
+                logger.error(" cert.der file not found")
                 return nil
               }
               return SecCertificateCreateWithData(nil, data as CFData)
             }()
 
             guard let certData = certFromBundle else { return }
-
-            //            guard
-            //             let certData = signManager.findCertificate(
-            //              tag: EnclaveManager.Constants.localDeviceTag)
-            //         else {
-            //              logger.error(
-            //               "Failed to fetch certificate for \(EnclaveManager.Constants.localDeviceTag, privacy: .public)"
-            //             )
-            //return
-            // }
 
             if let jadesData = signManager.signAsJAdES(
               originalDocument: picked.data,
@@ -100,11 +98,28 @@ struct ContentView: View {
         logger.error("Selection failed \(error.localizedDescription)")
       }
     }
+    .sheet(item: $itemURL) {
+      url in ShareSheet(items: [url])
+    }
+  }
+
+  public func generateAndShareCSR(tag: Data, commonName: String) {
+    let csr = CSREngine(tag: tag, commonName: commonName)
+
+    if let pemString = csr.buildPEM() {
+      logger.log("CSR Successfully generated")
+      let url = FileManager.default.temporaryDirectory.appendingPathComponent("request.csr")
+
+      do {
+        try pemString.write(to: url, atomically: true, encoding: .utf8)
+        self.itemURL = url
+      } catch {
+        logger.error("Failed to save CSR: \(error.localizedDescription)")
+      }
+    }
   }
 }
 
-struct ContentView_Previews: PreviewProvider {
-  static var previews: some View {
-    ContentView()
-  }
+extension URL: Identifiable {
+  public var id: String { self.absoluteString }
 }
