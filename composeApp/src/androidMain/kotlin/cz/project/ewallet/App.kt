@@ -44,15 +44,49 @@ fun App() {
         // Logic for processing files in a separate class
         val fileHandler = remember { FileHandler() }
 
+        // State to temporarily hold the JSON signature until the user picks a save location
+        var pendingSignature by remember { mutableStateOf<String?>(null) }
+
         // Launcher for system file picker
         val pickerLauncher =
                 rememberLauncherForActivityResult(
                         contract = ActivityResultContracts.OpenDocument(),
                         onResult = { uri: Uri? ->
                                 Log.d("ContentView", "File picker result received: $uri")
-                                fileHandler.processSelectedFile(context, uri)
+                                Log.d("TEMP", "$context")
+
+                                fileHandler.processSelectedFile(context, uri, enclave) {
+                                        jsonSignature ->
+                                        Log.d(
+                                                "ContentView",
+                                                "Received JAdES signature from FileHandler"
+                                        )
+                                        pendingSignature = jsonSignature
+                                }
                         }
                 )
+
+        // Launcher for creating/saving a document
+        val saveLauncher =
+                rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.CreateDocument("application/json"),
+                        onResult = { uri: Uri? ->
+                                Log.d("ContentView", "Save picker result received: $uri")
+                                // Write the JSON to the chosen location
+                                fileHandler.saveContentAsFile(context, uri, pendingSignature)
+                                // Clear the state so it's ready for next time
+                                pendingSignature = null
+                        }
+                )
+
+        // Effect to automatically trigger the save dialog when we get a new signature
+        LaunchedEffect(pendingSignature) {
+                if (pendingSignature != null) {
+                        Log.d("ContentView", "New signature generated, prompting user to save...")
+                        // Suggest a default filename to the user
+                        saveLauncher.launch("signature_jades.json")
+                }
+        }
 
         // Side effect to handle attestation chain fetching when key state changes
         // This prevents infinite logging loops during recomposition

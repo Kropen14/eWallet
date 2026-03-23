@@ -103,6 +103,12 @@ class EnclaveManager {
                 return Signature.getInstance("SHA256withECDSA").apply { initSign(privateKey) }
         }
 
+        // INFO: Takes the unlocked signature and the PDF bytes, and outputs the final signature
+        fun signData(unlockedSignature: Signature, data: ByteArray): ByteArray {
+                unlockedSignature.update(data)
+                return unlockedSignature.sign()
+        }
+
         // INFO: Returns pubkey part for registration with certification authority
         fun getPubKey(alias: String): java.security.PublicKey? {
                 return ks.getCertificate(alias)?.publicKey
