@@ -7,8 +7,12 @@ class CSRManager(
         // INFO: Default constructor
         val tag: String,
         val commonName: String,
-        val organization: String = "eWallet",
-        val country: String = "CZ",
+        val organization: String,
+        val organizational_unit: String,
+        val locality: String,
+        val state: String,
+        val country: String,
+        val email: String,
         val enclave: EnclaveManager
 ) {
 
@@ -126,14 +130,41 @@ class CSRManager(
 
                 var subject = ByteArray(0)
 
-                // INFO:  C (Country) - OID 2.5.4.6 -> hex: 55 04 06
+                // INFO: C (Country) - OID 2.5.4.6 -> hex: 55 04 06
                 subject += encodeRDN(byteArrayOf(0x55, 0x04, 0x06), country)
 
-                // INFO:  O (Organization) - OID 2.5.4.10 -> hex: 55 04 0A
+                // INFO: ST (State or Province) - OID 2.5.4.8 -> hex: 55 04 08
+                subject += encodeRDN(byteArrayOf(0x55, 0x04, 0x08), state)
+
+                // INFO: L (Locality / City) - OID 2.5.4.7 -> hex: 55 04 07
+                subject += encodeRDN(byteArrayOf(0x55, 0x04, 0x07), locality)
+
+                // INFO: O (Organization) - OID 2.5.4.10 -> hex: 55 04 0A
                 subject += encodeRDN(byteArrayOf(0x55, 0x04, 0x0a), organization)
+
+                // INFO: OU (Organizational Unit) - OID 2.5.4.11 -> hex: 55 04 0B
+                subject += encodeRDN(byteArrayOf(0x55, 0x04, 0x0b), organizational_unit)
 
                 // INFO: CN (Common Name) - OID 2.5.4.3 -> hex: 55 04 03
                 subject += encodeRDN(byteArrayOf(0x55, 0x04, 0x03), commonName)
+
+                // INFO: EmailAddress - OID 1.2.840.113549.1.9.1
+                // hex: 2A 86 48 86 F7 0D 01 09 01
+                subject +=
+                        encodeRDN(
+                                byteArrayOf(
+                                        0x2a,
+                                        0x86.toByte(),
+                                        0x48,
+                                        0x86.toByte(),
+                                        0xf7.toByte(),
+                                        0x0d,
+                                        0x01,
+                                        0x09,
+                                        0x01
+                                ),
+                                email
+                        )
 
                 return wrapSequence(subject)
         }

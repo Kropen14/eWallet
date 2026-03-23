@@ -25,7 +25,10 @@ struct ContentView: View {
       .cornerRadius(10)
 
       Button("Generate & Share CSR") {
-        generateAndShareCSR(tag: EnclaveManager.Constants.localDeviceTag, commonName: "Jan Novak")
+        generateAndShareCSR(
+          tag: EnclaveManager.Constants.localDeviceTag, commonName: "John Doe",
+          organization: "Signosoft", organizational_unit: "eWallet",
+          locality: "Prague", state: "Prague", country: "CZ", email: "john.doe@hotmail.com")
       }
       .padding()
       .background(Color.green)
@@ -104,8 +107,14 @@ struct ContentView: View {
     }
   }
 
-  public func generateAndShareCSR(tag: Data, commonName: String) {
-    let csr = CSREngine(tag: tag, commonName: commonName)
+  public func generateAndShareCSR(
+    tag: Data, commonName: String, organization: String, organizational_unit: String,
+    locality: String, state: String, country: String, email: String
+  ) {
+    let csr = CSREngine(
+      tag: tag, commonName: commonName, organization: organization,
+      organizational_unit: organizational_unit,
+      locality: locality, state: state, country: country, email: email)
 
     if let pemString = csr.buildPEM() {
       logger.log("CSR Successfully generated")

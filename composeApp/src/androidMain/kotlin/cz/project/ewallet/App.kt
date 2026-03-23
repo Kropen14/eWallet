@@ -37,8 +37,20 @@ fun App() {
                 EnclaveManager().apply { setup() }
         }
 
+        // INFO: Generates a X509Certificate signing request prefilled and hashed via the specified
+        // key with specified values
         val csr = remember {
-                CSRManager(EnclaveManager.ALIAS_LOCAL_DEVICE, "John Doe", "eWallet", "CZ", enclave)
+                CSRManager(
+                        tag = EnclaveManager.ALIAS_LOCAL_DEVICE,
+                        commonName = "John Doe",
+                        organization = "Signosoft",
+                        organizational_unit = "eWallet",
+                        locality = "Prague",
+                        state = "Prague",
+                        country = "CZ",
+                        email = "john.doe@hotmail.com",
+                        enclave = enclave
+                )
         }
 
         // State management

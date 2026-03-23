@@ -6,14 +6,25 @@ class CSREngine {
   private let logger = Logger.category("CSR")
   private var commonName: String
   private var organization: String
+  private var organizational_unit: String
+  private var locality: String
+  private var state: String
   private var country: String
+  private var email: String
   private var tag: Data
 
-  init(tag: Data, commonName: String, organization: String = "eWallet", country: String = "CZ") {
+  init(
+    tag: Data, commonName: String, organization: String, organizational_unit: String,
+    locality: String, state: String, country: String, email: String
+  ) {
     self.tag = tag
     self.commonName = commonName
     self.organization = organization
+    self.organizational_unit = organizational_unit
+    self.locality = locality
+    self.state = state
     self.country = country
+    self.email = email
   }
 
   public func buildPEM() -> String? {
@@ -126,8 +137,24 @@ class CSREngine {
 
     var subject = Data()
     subject.append(encodeRDN(oid: [0x55, 0x04, 0x06], value: country))  // C
+    subject.append(encodeRDN(oid: [0x55, 0x04, 0x08], value: state))  // S
+    subject.append(encodeRDN(oid: [0x55, 0x04, 0x07], value: locality))  // L
     subject.append(encodeRDN(oid: [0x55, 0x04, 0x0a], value: organization))  // O
+    subject.append(encodeRDN(oid: [0x55, 0x04, 0x0b], value: organizational_unit))  //OU
     subject.append(encodeRDN(oid: [0x55, 0x04, 0x03], value: commonName))  // CN
+    subject.append(
+      encodeRDN(
+        oid: [
+          0x2a,
+          UInt8(0x86),
+          0x48,
+          UInt8(0x86),
+          UInt8(0xf7),
+          0x0d,
+          0x01,
+          0x09,
+          0x01,
+        ], value: email))
     return wrapSequence(subject)
   }
 }
