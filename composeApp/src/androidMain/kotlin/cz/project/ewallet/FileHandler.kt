@@ -25,6 +25,20 @@ class FileHandler {
                         // ContentResolver acts as a bridge to reach the data behind the URI
                         val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
 
+                        // Extract the real filename from the URI
+                        val filename =
+                                context.contentResolver.query(uri, null, null, null, null)?.use {
+                                        cursor ->
+                                        val nameIndex =
+                                                cursor.getColumnIndex(
+                                                        android.provider.OpenableColumns
+                                                                .DISPLAY_NAME
+                                                )
+                                        cursor.moveToFirst()
+                                        cursor.getString(nameIndex)
+                                }
+                                        ?: "document.pdf"
+
                         inputStream?.use { stream ->
                                 // Read all bytes from the stream into a ByteArray
                                 val bytes = stream.readBytes()
@@ -38,7 +52,7 @@ class FileHandler {
                                                 activity,
                                                 enclave,
                                                 bytes,
-                                                "document.pdf",
+                                                filename,
                                                 onSignatureReady
                                         )
                                 }
