@@ -15,7 +15,7 @@ kotlin {
                         implementation(libs.compose.uiToolingPreview)
                         implementation(libs.androidx.activity.compose)
 
-			implementation("androidx.fragment:fragment-ktx:1.6.2")
+                        implementation("androidx.fragment:fragment-ktx:1.6.2")
                         implementation("androidx.biometric:biometric:1.2.0-alpha05")
                 }
                 commonMain.dependencies {

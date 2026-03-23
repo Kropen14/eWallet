@@ -49,7 +49,7 @@ class EnclaveManager {
                         alias = ALIAS_LOCAL_DEVICE,
                         purposes = KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_AGREE_KEY,
                         requireAuth = true,
-                        useStrongBox = false
+                        useStrongBox = false // TODO: Change to true when using a physical device
                 )
         }
 

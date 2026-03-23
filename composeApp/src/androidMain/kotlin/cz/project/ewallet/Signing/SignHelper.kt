@@ -15,7 +15,7 @@ fun authenticateAndSign(
         Log.d("FileHandler", "Starting JAdES preparation...")
 
         val jadesManager = JadesManager()
-        val certChain = enclave.getAttestationChain(EnclaveManager.ALIAS_QES_AUTH)
+        val certChain = enclave.getAttestationChain(EnclaveManager.ALIAS_LOCAL_DEVICE)
 
         //  PREPARE THE DATA
         val jadesContext = jadesManager.prepareSigningInput(fileName, pdfBytes, certChain)
@@ -44,7 +44,7 @@ fun authenticateAndSign(
                                         try {
                                                 val signature =
                                                         enclave.getSignatureObject(
-                                                                EnclaveManager.ALIAS_QES_AUTH
+                                                                EnclaveManager.ALIAS_LOCAL_DEVICE
                                                         )
                                                                 ?: throw Exception(
                                                                         "Failed to initialize Signature object"

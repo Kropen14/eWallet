@@ -4,6 +4,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import java.security.cert.X509Certificate
 
 @Composable
@@ -34,6 +37,10 @@ fun App() {
                 EnclaveManager().apply { setup() }
         }
 
+        val csr = remember {
+                CSRManager(EnclaveManager.ALIAS_LOCAL_DEVICE, "John Doe", "eWallet", "CZ", enclave)
+        }
+
         // State management
         var keyExists by remember { mutableStateOf(enclave.hasKey(EnclaveManager.ALIAS_QES_AUTH)) }
         var statusMessage by remember {
@@ -46,6 +53,8 @@ fun App() {
 
         // State to temporarily hold the JSON signature until the user picks a save location
         var pendingSignature by remember { mutableStateOf<String?>(null) }
+
+        var pendingCSR by remember { mutableStateOf<String?>(null) }
 
         // Launcher for system file picker
         val pickerLauncher =
@@ -78,6 +87,25 @@ fun App() {
                                 pendingSignature = null
                         }
                 )
+
+        val saveCSRLauncher =
+                rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.CreateDocument("application/csr"),
+                        onResult = { uri: Uri? ->
+                                Log.d("ContentView", "Save picker result received: $uri")
+                                // Write the JSON to the chosen location
+                                fileHandler.saveContentAsFile(context, uri, pendingCSR)
+                                // Clear the state so it's ready for next time
+                                pendingCSR = null
+                        }
+                )
+
+        LaunchedEffect(pendingCSR) {
+                if (pendingCSR != null) {
+                        Log.d("ContentView", "New CSR generated, prompting user to save...")
+                        saveCSRLauncher.launch("request.csr")
+                }
+        }
 
         // Effect to automatically trigger the save dialog when we get a new signature
         LaunchedEffect(pendingSignature) {
@@ -145,12 +173,112 @@ fun App() {
                                 modifier = Modifier.padding(8.dp)
                         ) { Text("Select a file for signing") }
 
+                        Button(
+                                onClick = {
+                                        Log.d("ContentView", "User clicked 'Generate CSR' button")
+
+                                        val activity = context as? FragmentActivity
+                                        if (activity == null) {
+                                                statusMessage =
+                                                        "Error: Activity is not a FragmentActivity"
+                                                return@Button
+                                        }
+
+                                        val executor = ContextCompat.getMainExecutor(activity)
+                                        val biometricPrompt =
+                                                BiometricPrompt(
+                                                        activity,
+                                                        executor,
+                                                        object :
+                                                                BiometricPrompt.AuthenticationCallback() {
+
+                                                                override fun onAuthenticationSucceeded(
+                                                                        result:
+                                                                                BiometricPrompt.AuthenticationResult
+                                                                ) {
+                                                                        super.onAuthenticationSucceeded(
+                                                                                result
+                                                                        )
+                                                                        Log.d(
+                                                                                "ContentView",
+                                                                                "Biometric auth successful, generating CSR..."
+                                                                        )
+
+                                                                        try {
+                                                                                val pemString =
+                                                                                        csr.buildPEM()
+                                                                                if (pemString !=
+                                                                                                null
+                                                                                ) {
+                                                                                        pendingCSR =
+                                                                                                pemString
+                                                                                        Log.d(
+                                                                                                "ContentView",
+                                                                                                "CSR Successfully generated"
+                                                                                        )
+                                                                                } else {
+                                                                                        statusMessage =
+                                                                                                "Error: CSR returned null"
+                                                                                }
+                                                                        } catch (e: Exception) {
+                                                                                statusMessage =
+                                                                                        "Error: ${e.message}"
+                                                                                Log.e(
+                                                                                        "ContentView",
+                                                                                        "Exception during CSR generation: ${e.message}"
+                                                                                )
+                                                                        }
+                                                                }
+
+                                                                override fun onAuthenticationError(
+                                                                        errorCode: Int,
+                                                                        errString: CharSequence
+                                                                ) {
+                                                                        super.onAuthenticationError(
+                                                                                errorCode,
+                                                                                errString
+                                                                        )
+                                                                        statusMessage =
+                                                                                "Auth Error: $errString"
+                                                                        Log.e(
+                                                                                "ContentView",
+                                                                                "Biometric auth error: $errString"
+                                                                        )
+                                                                }
+                                                        }
+                                                )
+
+                                        // Texty, které se zobrazí v dialogu pro otisk prstu
+                                        val promptInfo =
+                                                BiometricPrompt.PromptInfo.Builder()
+                                                        .setTitle("Authenticate to create CSR")
+                                                        .setSubtitle(
+                                                                "Confirm your identity to use the hardware key"
+                                                        )
+                                                        .setAllowedAuthenticators(
+                                                                androidx.biometric.BiometricManager
+                                                                        .Authenticators
+                                                                        .BIOMETRIC_STRONG or
+                                                                        androidx.biometric
+                                                                                .BiometricManager
+                                                                                .Authenticators
+                                                                                .DEVICE_CREDENTIAL
+                                                        )
+                                                        .build()
+
+                                        // Zobrazení samotného dialogu
+                                        biometricPrompt.authenticate(promptInfo)
+                                },
+                                modifier = Modifier.padding(8.dp)
+                        ) { Text("Generate & save CSR") }
+
                         // Button: Generate Key
                         Button(
                                 onClick = {
                                         Log.d("ContentView", "User clicked 'Generate key' button")
                                         try {
                                                 enclave.generateQesAuthKey()
+                                                enclave.generateLocalDeviceKey()
                                                 keyExists = true
                                                 statusMessage = "Key successfully generated"
                                                 Log.d("ContentView", "Key generation successful")
@@ -177,18 +305,21 @@ fun App() {
                                                         enclave.deleteKey(
                                                                 EnclaveManager.ALIAS_QES_AUTH
                                                         )
+                                                        enclave.deleteKey(
+                                                                EnclaveManager.ALIAS_LOCAL_DEVICE
+                                                        )
                                                         keyExists = false
-                                                        statusMessage = "Key deleted from Keystore"
+                                                        statusMessage = "Keys deleted from Keystore"
                                                         Log.d(
                                                                 "ContentView",
-                                                                "Key successfully deleted"
+                                                                "Keys successfully deleted"
                                                         )
                                                 } catch (e: Exception) {
                                                         statusMessage =
-                                                                "Error deleting key: ${e.message}"
+                                                                "Error deleting keys: ${e.message}"
                                                         Log.e(
                                                                 "ContentView",
-                                                                "Exception during key deletion: ${e.message}"
+                                                                "Exception during keys deletion: ${e.message}"
                                                         )
                                                 }
                                         },
