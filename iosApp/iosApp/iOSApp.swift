@@ -2,9 +2,15 @@ import SwiftUI
 
 @main
 struct iOSApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
+
+  init() {
+    BLEPeripheralManager.shared.start()
+  }
+
+  var body: some Scene {
+    WindowGroup {
+      ContentView()
     }
+  }
 }
+

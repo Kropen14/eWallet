@@ -1,6 +1,8 @@
 package cz.project.ewallet
 
+import android.Manifest // PŘIDÁNO: Pro přístup k názvům oprávnění
 import android.net.Uri
+import android.os.Build // PŘIDÁNO: Pro kontrolu verze Androidu
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,6 +32,44 @@ fun App() {
         Log.d("ContentView", "Initializing App Composable")
 
         val context = LocalContext.current
+
+        // ==========================================
+        // PŘIDÁNO: Logika pro vyžádání BT oprávnění
+        // ==========================================
+        val bluetoothPermissions =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        arrayOf(
+                                Manifest.permission.BLUETOOTH_SCAN,
+                                Manifest.permission.BLUETOOTH_ADVERTISE,
+                                Manifest.permission.BLUETOOTH_CONNECT
+                        )
+                } else {
+                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+                }
+
+        val permissionLauncher =
+                rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.RequestMultiplePermissions()
+                ) { permissionsMap ->
+                        val allGranted = permissionsMap.values.all { granted -> granted }
+                        if (allGranted) {
+                                Log.d(
+                                        "ContentView",
+                                        "Všechna Bluetooth/NFC oprávnění byla udělena."
+                                )
+                        } else {
+                                Log.w("ContentView", "Některá oprávnění byla zamítnuta uživatelem.")
+                                // Zde by ideálně v budoucnu mohla být změna stavu,
+                                // která zobrazí uživateli vysvětlující dialog.
+                        }
+                }
+
+        // Spustí se přesně jednou při prvním vykreslení této obrazovky
+        LaunchedEffect(Unit) {
+                Log.d("ContentView", "Vyžaduji Bluetooth oprávnění při startu aplikace")
+                permissionLauncher.launch(bluetoothPermissions)
+        }
+        // ==========================================
 
         // Initialize EnclaveManager
         val enclave = remember {

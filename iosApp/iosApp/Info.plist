@@ -10,5 +10,9 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+
+	<key>NSBluetoothAlwaysUsageDescription</key>  
+	<string>We need bluetooth access to enable offline document sharing to authorities and other users</string>  
+
 </dict>
 </plist>
