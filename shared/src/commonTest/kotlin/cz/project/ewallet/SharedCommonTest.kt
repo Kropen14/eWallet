@@ -1,6 +1,5 @@
 package cz.project.ewallet
 
-import android.util.Log
 import io.ktor.http.HttpMethod
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -30,7 +29,7 @@ class SharedCommonTest {
                         )
 
                 // 2. Print the result to your console so you can see it working
-                Log.d("CommonMain", "Network Response: $response")
+                println("Network Response: $response")
 
                 // 3. Assert that the JSON was successfully parsed into your Kotlin object
                 assertNotNull(response)
