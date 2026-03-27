@@ -3,17 +3,18 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {
-    androidTarget { 
-        compilerOptions { jvmTarget.set(JvmTarget.JVM_11) } 
+    androidTarget {
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_11) }
     }
 
     listOf(iosArm64()).forEach { iosTarget ->
         iosTarget.binaries.framework {
             baseName = "Shared"
-            isStatic = true 
+            isStatic = true
         }
     }
 
@@ -24,12 +25,15 @@ kotlin {
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.kotlinx.coroutines.core)
         }
-        commonTest.dependencies { implementation(libs.kotlin.test) }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
+        }
 
-        androidMain.dependencies { implementation(libs.ktor.client.okhttp) } 
+        androidMain.dependencies { implementation(libs.ktor.client.okhttp) }
         iosMain.dependencies { implementation(libs.ktor.client.darwin) }
     }
-} 
+}
 
 android {
     namespace = "cz.project.ewallet.shared"
@@ -40,3 +44,5 @@ android {
     }
     defaultConfig { minSdk = libs.versions.android.minSdk.get().toInt() }
 }
+
+
