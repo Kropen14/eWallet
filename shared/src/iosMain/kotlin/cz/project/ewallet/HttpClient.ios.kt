@@ -5,5 +5,9 @@ import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.darwin.Darwin
 
 actual fun createHttpClient(config: HttpClientConfig<*>.() -> Unit): HttpClient {
-        return HttpClient(Darwin) { config(this) }
+        return HttpClient(Darwin) {
+                config(this)
+
+                engine { configureRequest { setTimeoutInterval(30.0) } }
+        }
 }

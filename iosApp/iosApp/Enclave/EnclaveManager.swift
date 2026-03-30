@@ -16,7 +16,6 @@ extension Logger {
 }
 
 class EnclaveManager {
-
   private let logger = Logger.category("Enclave")
 
   public enum Constants {

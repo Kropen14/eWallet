@@ -1,3 +1,4 @@
+import AuthenticationServices
 import LocalAuthentication
 import OSLog
 import Shared
@@ -8,9 +9,11 @@ struct ContentView: View {
   let signManager = SignManager()
   let biometry = Biometry()
   let logger = Logger.category("ContentView")
+  let networkManager = NetworkManager()
 
   @State private var isImporting = false
   @State private var itemURL: URL? = nil
+  @Environment(\.webAuthenticationSession) private var webAuthSession
 
   let fileHandler = FileHandler()
 
@@ -35,6 +38,16 @@ struct ContentView: View {
       .foregroundColor(.white)
       .cornerRadius(10)
 
+      Button("Contact BankiD") {
+        Task {
+          await performWebLogin()
+        }
+      }
+      .padding()
+      .background(Color.blue)
+      .foregroundColor(.white)
+      .cornerRadius(10)
+
       Button("Sign document from files") {
         isImporting = true
       }
@@ -42,6 +55,7 @@ struct ContentView: View {
       .background(Color.blue)
       .foregroundColor(.white)
       .cornerRadius(10)
+
     }
     .fileImporter(
       isPresented: $isImporting,
@@ -104,6 +118,33 @@ struct ContentView: View {
     }
     .sheet(item: $itemURL) {
       url in ShareSheet(items: [url])
+    }
+  }
+
+  private func performWebLogin() async {
+    do {
+      // 1. Get the actual BankID portal URL via your KMP client
+      let ngrokCallback = "https://patrina-noninterpretive-uninterestingly.ngrok-free.dev"
+        let loginPortalURL = try await networkManager.getBankIdLoginURL(ngrokUrl: ngrokCallback)
+
+      guard let url = URL(string: loginPortalURL) else { return }
+
+      // 2. Open the browser. ASWebAuthenticationSession will wait for "ewallet://"
+      // When your Node.js server redirects to ewallet://auth?status=success,
+      // this call returns.
+      let callbackUrl = try await webAuthSession.authenticate(
+        using: url,
+        callbackURLScheme: "ewallet"
+      )
+
+      // 3. Handle the successful snap-back
+      logger.log("Successfully returned to app: \(callbackUrl.absoluteString)")
+
+      // At this point, Signosoft has already POSTed the JSON data
+      // to your local Node.js server.
+
+    } catch {
+      logger.error("Login failed: \(error.localizedDescription)")
     }
   }
 

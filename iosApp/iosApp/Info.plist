@@ -4,15 +4,20 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
-	<key>NSFaceIDUsageDescription</key>
-	<string>We need FaceID enabled for your own security during the signing process</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>eWallet</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ewallet</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIFileSharingEnabled</key>
 	<true/>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<true/>
-
-	<key>NSBluetoothAlwaysUsageDescription</key>  
-	<string>We need bluetooth access to enable offline document sharing to authorities and other users</string>  
-
 </dict>
 </plist>
