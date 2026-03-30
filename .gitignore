@@ -13,6 +13,7 @@ Thumbs.db
 *.pbxproj
 # --- Android / Kotlin (Gradle) ---
 .gradle/
+tools/
 build/
 captures/
 *.apk
