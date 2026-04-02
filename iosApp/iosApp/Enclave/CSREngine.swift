@@ -158,3 +158,18 @@ class CSREngine {
     return wrapSequence(subject)
   }
 }
+
+extension CSREngine {
+  convenience init(tag: Data, userData: UserData) {
+    self.init(
+      tag: tag,
+      commonName: userData.commonName,
+      organization: "Signosoft",
+      organizational_unit: "eWallet",
+      locality: userData.locality ?? "Neznámé",
+      state: userData.locality ?? "Neznámé",
+      country: userData.country ?? "CZ",
+      email: userData.email ?? "bez@emailu.cz"
+    )
+  }
+}

@@ -4,6 +4,11 @@ import OSLog
 import Shared
 import SwiftUI
 
+//WARN: May break in the future if swift implements this differently
+extension URL: Identifiable {
+  public var id: String { self.absoluteString }
+}
+
 struct ContentView: View {
   let enclaveManager = EnclaveManager()
   let signManager = SignManager()
@@ -27,24 +32,13 @@ struct ContentView: View {
       .foregroundColor(.white)
       .cornerRadius(10)
 
-      Button("Generate & Share CSR") {
-        generateAndShareCSR(
-          tag: EnclaveManager.Constants.localDeviceTag, commonName: "John Doe",
-          organization: "Signosoft", organizational_unit: "eWallet",
-          locality: "Prague", state: "Prague", country: "CZ", email: "john.doe@hotmail.com")
-      }
-      .padding()
-      .background(Color.green)
-      .foregroundColor(.white)
-      .cornerRadius(10)
-
-      Button("Contact BankiD") {
+      Button("Contact BankiD & generateCSR") {
         Task {
           await performWebLogin()
         }
       }
       .padding()
-      .background(Color.blue)
+      .background(Color.mint)
       .foregroundColor(.white)
       .cornerRadius(10)
 
@@ -52,7 +46,7 @@ struct ContentView: View {
         isImporting = true
       }
       .padding()
-      .background(Color.blue)
+      .background(Color.indigo)
       .foregroundColor(.white)
       .cornerRadius(10)
 
@@ -123,43 +117,46 @@ struct ContentView: View {
 
   private func performWebLogin() async {
     do {
-
-      //WARN: Has to be changed to the current grok callback url
+      //WARN: Change after going to production
       let ngrokCallback = "https://patrina-noninterpretive-uninterestingly.ngrok-free.dev"
       let loginPortalURL = try await networkManager.getBankIdLoginURL(ngrokUrl: ngrokCallback)
 
       guard let url = URL(string: loginPortalURL) else { return }
 
-      //  ASWebAuthenticationSession will wait for "ewallet://"
-      // When your Node.js server redirects to ewallet://auth?status=success,
-      // this call returns.
       let callbackUrl = try await webAuthSession.authenticate(
         using: url,
-        callbackURLScheme: "ewallet"
+        callbackURLScheme: "ewallet"  //INFO: Deeplink project setting dependent
       )
 
-      //  Handle the successful snap-back
       logger.log("Successfully returned to app: \(callbackUrl.absoluteString)")
 
-      // At this point, Signosoft has already POSTed the JSON data
-      // to your local Node.js server.
+      guard let components = URLComponents(url: callbackUrl, resolvingAgainstBaseURL: false),
+        let queryItems = components.queryItems,
+        let token = queryItems.first(where: { $0.name == "token" })?.value
+      else {
+        logger.error("Token not found in return address")
+        return
+      }
+
+      if let userData = JWTDecoder.decodePayload(token: token, as: UserData.self) {
+        logger.log("Extracted userData for: \(userData.commonName)")
+
+        generateCSR(from: userData)
+
+      } else {
+        logger.error("Unable to extract user data")
+      }
 
     } catch {
       logger.error("Login failed: \(error.localizedDescription)")
     }
   }
 
-  public func generateAndShareCSR(
-    tag: Data, commonName: String, organization: String, organizational_unit: String,
-    locality: String, state: String, country: String, email: String
-  ) {
-    let csr = CSREngine(
-      tag: tag, commonName: commonName, organization: organization,
-      organizational_unit: organizational_unit,
-      locality: locality, state: state, country: country, email: email)
+  private func generateCSR(from userData: UserData) {
+    let csrEngine = CSREngine(tag: EnclaveManager.Constants.localDeviceTag, userData: userData)
 
-    if let pemString = csr.buildPEM() {
-      logger.log("CSR Successfully generated")
+    if let pemString = csrEngine.buildPEM() {
+      logger.log("Successfully generated a CSR for the user")
       let url = FileManager.default.temporaryDirectory.appendingPathComponent("request.csr")
 
       do {
@@ -168,11 +165,33 @@ struct ContentView: View {
       } catch {
         logger.error("Failed to save CSR: \(error.localizedDescription)")
       }
+    } else {
+      logger.error("Error during PEM build in CSREngine layer")
     }
   }
-}
 
-//WARN: May break in the future if swift implements this differently
-extension URL: Identifiable {
-  public var id: String { self.absoluteString }
+  //NOTE: deprecated, but still may be usefull
+  //   public func generateAndShareCSR(
+  //     tag: Data, commonName: String, organization: String, organizational_unit: String,
+  //     locality: String, state: String, country: String, email: String
+  //   ) {
+  //     let csr = CSREngine(
+  //       tag: tag, commonName: commonName, organization: organization,
+  //       organizational_unit: organizational_unit,
+  //       locality: locality, state: state, country: country, email: email)
+  //
+  //     if let pemString = csr.buildPEM() {
+  //       logger.log("CSR Successfully generated")
+  //       let url = FileManager.default.temporaryDirectory.appendingPathComponent("request.csr")
+  //
+  //       do {
+  //         try pemString.write(to: url, atomically: true, encoding: .utf8)
+  //         self.itemURL = url
+  //       } catch {
+  //         logger.error("Failed to save CSR: \(error.localizedDescription)")
+  //       }
+  //     }
+  //   }
+  // }
+
 }

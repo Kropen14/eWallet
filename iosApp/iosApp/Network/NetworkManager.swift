@@ -10,7 +10,8 @@ class NetworkManager {
 
   public func ensureAuthenticated() async throws {
     if authToken.isEmpty {
-      let requestBody = TokenRequest(login: preferences.bankIDAuthKey, password: preferences.bankIDAuthSecret)
+      let requestBody = TokenRequest(
+        login: preferences.bankIDAuthKey, password: preferences.bankIDAuthSecret)
       let token = try await kmpClient.requestAuthToken(request: requestBody)
       self.authToken = token
     }
