@@ -123,13 +123,14 @@ struct ContentView: View {
 
   private func performWebLogin() async {
     do {
-      // 1. Get the actual BankID portal URL via your KMP client
+
+      //WARN: Has to be changed to the current grok callback url
       let ngrokCallback = "https://patrina-noninterpretive-uninterestingly.ngrok-free.dev"
-        let loginPortalURL = try await networkManager.getBankIdLoginURL(ngrokUrl: ngrokCallback)
+      let loginPortalURL = try await networkManager.getBankIdLoginURL(ngrokUrl: ngrokCallback)
 
       guard let url = URL(string: loginPortalURL) else { return }
 
-      // 2. Open the browser. ASWebAuthenticationSession will wait for "ewallet://"
+      //  ASWebAuthenticationSession will wait for "ewallet://"
       // When your Node.js server redirects to ewallet://auth?status=success,
       // this call returns.
       let callbackUrl = try await webAuthSession.authenticate(
@@ -137,7 +138,7 @@ struct ContentView: View {
         callbackURLScheme: "ewallet"
       )
 
-      // 3. Handle the successful snap-back
+      //  Handle the successful snap-back
       logger.log("Successfully returned to app: \(callbackUrl.absoluteString)")
 
       // At this point, Signosoft has already POSTed the JSON data

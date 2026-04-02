@@ -6,11 +6,11 @@ import Shared
 class NetworkManager {
   private var authToken: String = ""
   private let kmpClient = NetworkClient()
+  private var preferences = PListManager.load()
 
   public func ensureAuthenticated() async throws {
-    // Only fetch if we don't have a token yet
     if authToken.isEmpty {
-      let requestBody = TokenRequest(login: "test", password: "test")
+      let requestBody = TokenRequest(login: preferences.bankIDAuthKey, password: preferences.bankIDAuthSecret)
       let token = try await kmpClient.requestAuthToken(request: requestBody)
       self.authToken = token
     }
