@@ -30,7 +30,7 @@ kotlin {
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
         }
 
-        androidMain.dependencies { implementation(libs.ktor.client.okhttp) }
+        androidMain.dependencies { implementation(libs.ktor.client.android) }
         iosMain.dependencies { implementation(libs.ktor.client.darwin) }
     }
 }
