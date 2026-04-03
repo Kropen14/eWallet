@@ -20,6 +20,11 @@ class SignManager {
   //NOTE: One can notice that our biometry class is not called in this function
   //      This is by design, the key itself can only be used when biometrically authenticated
   //      this property is specified during key generation
+  //
+  //NOTE: This function accepts RAW (unhashed) data and signs it using the message-level algorithm
+  //      .ecdsaSignatureMessageX962SHA256 handles SHA-256 hashing internally inside the Secure Enclave
+  //      Using the digest-level variant (.ecdsaSignatureDigestX962SHA256) with a pre-hashed input
+  //      would cause double hashing: ECDSA(SHA256(SHA256(data))) — which is cryptographically wrong
   public func sign(data_to_sign: Data, tag: Data, context: LAContext) -> Data? {
 
     logger.log("Initiating signing process")
@@ -29,7 +34,7 @@ class SignManager {
       kSecAttrApplicationTag as String: tag,
       kSecAttrKeyClass as String: kSecAttrKeyClassPrivate,  //INFO: Explicitly specify private key
       kSecReturnRef as String: true,
-      kSecUseAuthenticationContext as String: context,  //INFO: Pass biometry text
+      kSecUseAuthenticationContext as String: context,  //INFO: Pass biometry context for hardware key access
     ]
 
     var item: CFTypeRef?
@@ -42,14 +47,13 @@ class SignManager {
 
     var error: Unmanaged<CFError>?
 
-    let hash = SHA256.hash(data: data_to_sign)
-    let hashed_data = Data(hash)
-
+    //INFO: Pass raw data directly — the message-level algorithm performs SHA-256 internally
+    //      No manual pre-hashing here, that would result in signing SHA256(SHA256(data))
     guard
       let signature = SecKeyCreateSignature(
         privateKey,
-        .ecdsaSignatureDigestX962SHA256,
-        hashed_data as CFData,
+        .ecdsaSignatureMessageX962SHA256,
+        data_to_sign as CFData,
         &error
       )
     else {
@@ -66,25 +70,71 @@ class SignManager {
   }
 
   public func signAsJAdES(
-    originalDocument: Data, fileName: String, tag: Data, pubKeyData: Data, context: LAContext,
+    originalDocument: Data, fileName: String, mimeType: String = "application/octet-stream",
+    tag: Data, pubKeyData: Data, context: LAContext,
     userCert: SecCertificate
   ) -> Data? {
 
-    logger.log("Initiating signing")
+    logger.log("Initiating JAdES signing")
 
+    //INFO: Compute the document hash — this is referenced in sigD, not embedded in the payload
+    //      sigD is the JAdES standard mechanism for detached content signing
     let documentHash = SHA256.hash(data: originalDocument)
-    let documentHashBase64 = Data(documentHash).base64EncodedString()
+    let documentHashBase64 = Data(documentHash).base64UrlEncodedString()
+
+    //INFO: sigT must be an RFC 3339 / ISO 8601 UTC timestamp
     let timestamp = ISO8601DateFormatter().string(from: Date())
     let certificateChain: [String] = getCertificateChain(for: userCert)
 
-    //INFO: Transform the pubkey into the accepted standard
+    //INFO: Compute the SHA-256 digest of the DER-encoded signing certificate
+    //      This is used in the sigCert header to cryptographically bind the cert to the signature
+    let certData = SecCertificateCopyData(userCert) as Data
+    let certHash = SHA256.hash(data: certData)
+    let certHashBase64Url = Data(certHash).base64UrlEncodedString()
+
+    //INFO: Extract issuer name and serial number from the certificate
+    //      These are required alongside digVal to unambiguously identify the signing certificate
+    //      per ETSI EN 119 182 — without them DSS reports signing-certificate as WARNING
+    guard
+      let issuerData = SecCertificateCopyNormalizedIssuerSequence(userCert) as Data?,
+      let serialData = SecCertificateCopySerialNumberData(userCert, nil) as Data?
+    else {
+      logger.error("Failed to extract issuer or serial from certificate")
+      return nil
+    }
+    let issuerBase64 = issuerData.base64UrlEncodedString()
+    let serialBase64 = serialData.base64UrlEncodedString()
+
+    //INFO: Transform the pubkey into the accepted JWK standard (uncompressed EC point, 0x04 prefix)
     guard pubKeyData.count == 65 && pubKeyData[0] == 0x04 else {
-      logger.error("Unsupported pubkey format")
+      logger.error("Unsupported pubkey format — expected 65-byte uncompressed EC point")
       return nil
     }
     let xBase64Url = pubKeyData.subdata(in: 1..<33).base64UrlEncodedString()
     let yBase64Url = pubKeyData.subdata(in: 33..<65).base64UrlEncodedString()
 
+    // //INFO: sigCert — binds the signing certificate to the signature
+    // //      digVal alone is insufficient; issuer + serial are required for unambiguous identification
+    // let sigCert: [String: Any] = [
+    //   "digAlg": "SHA-256",
+    //   "digVal": certHashBase64Url,
+    //   "issuer": issuerBase64,  //INFO: DER-encoded issuer name, base64url
+    //   "serial": serialBase64,  //INFO: DER-encoded serial number, base64url
+    // ]
+
+    //INFO: sigD — required for detached JAdES signing (ETSI EN 119 182 §5.2.8)
+    //      Describes the signed document by name and hash so the validator can locate and verify it
+    //      Without sigD, DSS cannot perform reference data validation on a detached payload
+    let sigD: [String: Any] = [
+      "mId": "http://uri.etsi.org/19182/ObjectIdByURIHash",
+      "pars": [fileName],
+      "hashM": "S256",
+      "hashV": [documentHashBase64],
+      "ctys": [mimeType],
+    ]
+
+    //NOTE: jwk is intentionally included here as it helps DSS perform the math verification check
+    //      It is not required by the standard and can be removed in a production hardened build
     let jwk: [String: String] = [
       "kty": "EC",
       "crv": "P-256",
@@ -92,15 +142,26 @@ class SignManager {
       "y": yBase64Url,
     ]
 
-    //INFO: header with timestamp and pubkey
+    //INFO: crit lists all header parameters that MUST be understood by the verifier
+    //      sigD is the critical one for detached content; sigT and sigCert are JAdES-defined
+    let crit: [String] = ["sigD", "sigT"]
+
+    //INFO: typ must be "jose+json" for JSON serialization per RFC 7515 §4.1.9
+    //      Using "JAdES" here is non-standard and causes format warnings in DSS
     let header: [String: Any] = [
       "alg": "ES256",
-      "typ": "JAdES",
+      "typ": "jose+json",
       "sigT": timestamp,
       "x5c": certificateChain,
-      "jwk": jwk,  //NOTE: tool for math check (DSS)
+      "jwk": jwk,
+      // "sigCert": sigCert,
+      "x5t#S256": certHashBase64Url,
+      "sigD": sigD,
+      "crit": crit,
     ]
 
+    //INFO: Payload still carries human-readable metadata but the canonical signed reference
+    //      for the document is in sigD (protected header), not here
     let payload: [String: String] = [
       "document_name": fileName,
       "document_sha256": documentHashBase64,
@@ -109,26 +170,31 @@ class SignManager {
     guard let headerData = try? JSONSerialization.data(withJSONObject: header),
       let payloadData = try? JSONSerialization.data(withJSONObject: payload)
     else {
+      logger.error("Failed to serialize header or payload to JSON")
       return nil
     }
 
     let protectedB64 = headerData.base64UrlEncodedString()
     let payloadB64 = payloadData.base64UrlEncodedString()
 
-    //INFO: Merge and sign
+    //INFO: JWS signing input is ASCII bytes of "BASE64URL(header).BASE64URL(payload)"
+    //      This raw string is passed directly to sign() — no pre-hashing here
+    //      sign() uses .ecdsaSignatureMessageX962SHA256 which handles SHA-256 internally
     let signingInputString = "\(protectedB64).\(payloadB64)"
     guard let signingInputData = signingInputString.data(using: .ascii),
       let derSignature = self.sign(data_to_sign: signingInputData, tag: tag, context: context)
     else {
+      logger.error("Signing of JWS input failed")
       return nil
     }
 
+    //INFO: DER → raw 64-byte (R || S) conversion required by JWS/JAdES
     guard let rawSignature = convertDERtoRawSignature(derSignature) else {
       logger.error("Conversion from DER to RAW64 failed")
       return nil
     }
 
-    // INFO: Complete the final JSON
+    //INFO: Final JAdES JSON serialization per RFC 7515 §7.2
     let jadesJSON: [String: Any] = [
       "payload": payloadB64,
       "protected": protectedB64,
@@ -208,6 +274,25 @@ class SignManager {
       return (item as! SecCertificate)
     }
     return nil
+  }
+
+  // INFO: Načte testovací certifikát z přibaleného souboru cert.der
+  public func getLocalTestCertificate() -> SecCertificate? {
+    // 1. Najde soubor v projektu
+    guard let certURL = Bundle.main.url(forResource: "cert", withExtension: "der"),
+      let certData = try? Data(contentsOf: certURL)
+    else {
+      logger.error("Soubor cert.der nebyl nalezen v App Bundle.")
+      return nil
+    }
+
+    // 2. Převede surová data na Apple SecCertificate objekt
+    guard let certificate = SecCertificateCreateWithData(nil, certData as CFData) else {
+      logger.error("Nepodařilo se vytvořit SecCertificate z dodaných dat.")
+      return nil
+    }
+
+    return certificate
   }
 
 }

@@ -75,7 +75,7 @@ struct ContentView: View {
             }
 
             let certFromBundle: SecCertificate? = {
-              guard let url = Bundle.main.url(forResource: "cert", withExtension: "der"),
+              guard let url = Bundle.main.url(forResource: "new_cert", withExtension: "der"),
                 let data = try? Data(contentsOf: url)
               else {
                 logger.error(" cert.der file not found")
