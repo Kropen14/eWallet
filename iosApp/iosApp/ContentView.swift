@@ -1,4 +1,5 @@
 import AuthenticationServices
+import Foundation
 import LocalAuthentication
 import OSLog
 import Shared
@@ -21,6 +22,9 @@ struct ContentView: View {
   @Environment(\.webAuthenticationSession) private var webAuthSession
 
   let fileHandler = FileHandler()
+
+  // INFO: Inicializace ViewModelu pro obsluhu NFC
+  @StateObject private var nfcViewModel = NFCViewModel()
 
   var body: some View {
     VStack {
@@ -49,6 +53,21 @@ struct ContentView: View {
       .background(Color.indigo)
       .foregroundColor(.white)
       .cornerRadius(10)
+
+      // INFO: Nové tlačítko pro testování NFC
+      Button("Test NFC Scanner") {
+        nfcViewModel.startScanning()
+      }
+      .padding()
+      .background(Color.orange)
+      .foregroundColor(.white)
+      .cornerRadius(10)
+
+      // INFO: Zobrazení aktuálního stavu NFC (hlášky z delegáta)
+      Text(nfcViewModel.statusMessage)
+        .font(.caption)
+        .foregroundColor(.secondary)
+        .padding(.top, 4)
 
     }
     .fileImporter(
@@ -169,29 +188,52 @@ struct ContentView: View {
       logger.error("Error during PEM build in CSREngine layer")
     }
   }
+}
 
-  //NOTE: deprecated, but still may be usefull
-  //   public func generateAndShareCSR(
-  //     tag: Data, commonName: String, organization: String, organizational_unit: String,
-  //     locality: String, state: String, country: String, email: String
-  //   ) {
-  //     let csr = CSREngine(
-  //       tag: tag, commonName: commonName, organization: organization,
-  //       organizational_unit: organizational_unit,
-  //       locality: locality, state: state, country: country, email: email)
-  //
-  //     if let pemString = csr.buildPEM() {
-  //       logger.log("CSR Successfully generated")
-  //       let url = FileManager.default.temporaryDirectory.appendingPathComponent("request.csr")
-  //
-  //       do {
-  //         try pemString.write(to: url, atomically: true, encoding: .utf8)
-  //         self.itemURL = url
-  //       } catch {
-  //         logger.error("Failed to save CSR: \(error.localizedDescription)")
-  //       }
-  //     }
-  //   }
-  // }
+// ObservableObject umožňuje SwiftUI sledovat změny v této třídě
+class NFCViewModel: ObservableObject, NFCManagerDelegate {
 
+  // @Published proměnné automaticky překreslí UI, když se jejich hodnota změní
+  @Published var statusMessage: String = "Připraveno ke čtení"
+  @Published var isScanning: Bool = false
+
+  // Instance tvého NFC manažera
+  private var nfcManager = NFCManager()
+
+  init() {
+    // Nastavíme tento ViewModel jako delegáta pro NFCManager
+    nfcManager.delegate = self
+  }
+
+  func startScanning() {
+    statusMessage = "Přiložte telefon..."
+    isScanning = true
+    nfcManager.startEngagement()
+  }
+
+  // MARK: - NFCManagerDelegate implementace
+
+  func onNFCConnected() {
+    // UI aktualizace MUSÍ probíhat na hlavním vlákně (Main Thread)
+    DispatchQueue.main.async {
+      self.statusMessage = "NFC tag detekován, probíhá čtení..."
+    }
+  }
+
+  func onEngagementDataReceived(data: Data) {
+    DispatchQueue.main.async {
+      self.isScanning = false
+      self.statusMessage = "Úspěch! Přijato \(data.count) bytů dat."
+
+      // TODO: Tady vezmeš 'data' a pošleš je do svého Kotlin Multiplatform
+      // modulu k rozparsování (např. CBOR dekodér pro mDL engagement)
+    }
+  }
+
+  func onNFCError(message: String) {
+    DispatchQueue.main.async {
+      self.isScanning = false
+      self.statusMessage = "NFC selhalo: \(message)"
+    }
+  }
 }

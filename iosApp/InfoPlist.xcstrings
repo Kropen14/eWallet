@@ -13,6 +13,18 @@
         }
       }
     },
+    "NFCReaderUsageDescription" : {
+      "comment" : "Privacy - NFC Scan Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "We need NFC to enable you to share documents"
+          }
+        }
+      }
+    },
     "NSBluetoothAlwaysUsageDescription" : {
       "comment" : "Privacy - Bluetooth Always Usage Description",
       "extractionState" : "extracted_with_value",
@@ -41,6 +53,9 @@
           }
         }
       }
+    },
+    "NSNFCUsageDescription" : {
+      "extractionState" : "manual"
     }
   },
   "version" : "1.1"

@@ -256,6 +256,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = iosApp/Info.plist;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "We need NFC to enable you to share documents";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "We need bluetooth access to enable offline document sharing to authorities and other users";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "We need FaceID enabled for your own security during the signing process";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -347,6 +348,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = iosApp/Info.plist;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "We need NFC to enable you to share documents";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "We need bluetooth access to enable offline document sharing to authorities and other users";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "We need FaceID enabled for your own security during the signing process";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
